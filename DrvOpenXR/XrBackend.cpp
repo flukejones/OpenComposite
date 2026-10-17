@@ -15,6 +15,7 @@
 #include <GL/glx.h>
 #endif
 
+#include <cmath>
 #include <openxr/openxr_platform.h>
 
 // On Android, the app has to pass the OpenGLES setup data through
@@ -418,6 +419,21 @@ void XrBackend::WaitForTrackingData()
 	const XruCachedViews& cachedViews = xr_gbl->GetCachedViews(projectionSpace);
 	const XrViewState& viewState = cachedViews.viewState;
 	const std::array<XrView, XruEyeCount>& views = cachedViews.views;
+	const XrViewStateFlags valid = XR_VIEW_STATE_ORIENTATION_VALID_BIT | XR_VIEW_STATE_POSITION_VALID_BIT;
+	if (cachedViews.viewCount == XruEyeCount && (viewState.viewStateFlags & valid) == valid) {
+		float ipd = glm::distance(X2G_v3f(views[0].pose.position), X2G_v3f(views[1].pose.position));
+		if (std::isfinite(ipd) && ipd > 0.0f && std::fabs(ipd - lastNotifiedIpd) > 1e-5f) {
+			if (BaseSystem* system = GetUnsafeBaseSystem()) {
+				VREvent_t event = {
+					.eventType = VREvent_IpdChanged,
+					.trackedDeviceIndex = vr::k_unTrackedDeviceIndex_Hmd
+				};
+				event.data.ipd.ipdMeters = ipd;
+				system->_EnqueueEvent(event);
+				lastNotifiedIpd = ipd;
+			}
+		}
+	}
 
 	for (int eye = 0; eye < XruEyeCount; eye++) {
 		projectionViews[eye].fov = views[eye].fov;

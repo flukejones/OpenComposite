@@ -104,6 +104,7 @@ private:
 
 	// The views for the two main eye layers
 	XrCompositionLayerProjectionView projectionViews[XruEyeCount];
+	float lastNotifiedIpd = 0.0f;
 
 	// Have we started rendering a frame yet? If not, calling xrEndFrame would result in an error
 	bool renderingFrame = false;

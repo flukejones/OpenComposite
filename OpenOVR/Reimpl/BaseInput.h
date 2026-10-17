@@ -809,6 +809,7 @@ private:
 
 	std::vector<const InteractionProfile*> handInteractionProfiles;
 
+	// An empty path supplies legacy bindings without application bindings.
 	void LoadBindingsSet(const InteractionProfile& profile, const std::string& bindingsPath);
 
 	void LoadDpadAction(const InteractionProfile& profile, const std::string& importBasePath, const std::string& inputName, const std::string& subMode, Action* action, std::vector<XrActionSuggestedBinding>& bindings, bool isKnuckles);

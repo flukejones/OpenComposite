@@ -11,6 +11,7 @@
 #include "Drivers/Backend.h"
 #include "generated/static_bases.gen.h"
 #include <algorithm>
+#include <cerrno>
 #include <cmath>
 #include <codecvt>
 #include <cstdint>
@@ -27,6 +28,7 @@
 #include <numbers>
 #include <optional>
 #include <set>
+#include <system_error>
 #include <utility>
 
 #include "Misc/xrmoreutils.h"
@@ -67,7 +69,7 @@ using namespace vr;
 	} while (0)
 
 // This is a duplicate from BaseClientCore.cpp
-static bool ReadJson(const std::wstring& path, Json::Value& result)
+static bool ReadJson(const std::wstring& path, Json::Value& result, std::string& error)
 {
 #ifndef _WIN32
 	typedef std::codecvt_utf8<wchar_t> convert_type;
@@ -78,20 +80,20 @@ static bool ReadJson(const std::wstring& path, Json::Value& result)
 #endif
 
 #ifndef ANDROID
-	std::ifstream in(real_path, std::ios::binary);
-	if (in) {
-		std::stringstream contents;
-		contents << in.rdbuf();
-		contents >> result;
-		return true;
-	} else {
-		result = Json::Value(Json::ValueType::objectValue);
+	std::ifstream in(real_path.c_str(), std::ios::binary);
+	if (!in) {
+		error = std::generic_category().message(errno);
 		return false;
 	}
+	Json::CharReaderBuilder reader;
+	return Json::parseFromStream(reader, in, &result, &error);
 #else
 	std::string contents = OpenComposite_Android_Load_Input_File(real_path.c_str());
 	Json::Reader reader;
-	reader.parse(contents, result, false);
+	if (!reader.parse(contents, result, false)) {
+		error = reader.getFormattedErrorMessages();
+		return false;
+	}
 	return true;
 #endif
 }
@@ -388,9 +390,9 @@ EVRInputError BaseInput::SetActionManifestPath(const char* pchActionManifestPath
 	loadedActionsPath = pchActionManifestPath;
 
 	Json::Value root;
-	// It says 'open or parse', but really it ignores parse errors - TODO catch those
-	if (!ReadJson(utf8to16(pchActionManifestPath), root))
-		OOVR_ABORTF("Failed to open or parse input manifest (%s)", pchActionManifestPath);
+	std::string error;
+	if (!ReadJson(utf8to16(pchActionManifestPath), root, error))
+		OOVR_ABORTF("Failed to open or parse input manifest (%s): %s", pchActionManifestPath, error.c_str());
 
 	// Random setting which is in the action manifest
 	allowSetDominantHand = root["supports_dominant_hand_setting"].asBool();
@@ -681,23 +683,7 @@ void BaseInput::LoadEmptyManifestIfRequired()
 
 	// Load in the suggested bindings for the legacy input actions
 	for (const std::unique_ptr<InteractionProfile>& profile : InteractionProfile::GetProfileList()) {
-		if (!profile->CanHaveBindings())
-			continue;
-
-		std::vector<XrActionSuggestedBinding> bindings;
-		for (const auto& legacyController : legacyControllers) {
-			profile->AddLegacyBindings(legacyController, bindings);
-		}
-
-		// Load the bindings into the runtime
-		XrPath interactionProfilePath;
-		OOVR_FAILED_XR_ABORT(xrStringToPath(xr_instance, profile->GetPath().c_str(), &interactionProfilePath));
-		XrInteractionProfileSuggestedBinding suggestedBindings{ XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING };
-
-		suggestedBindings.interactionProfile = interactionProfilePath;
-		suggestedBindings.suggestedBindings = bindings.data();
-		suggestedBindings.countSuggestedBindings = bindings.size();
-		OOVR_FAILED_XR_ABORT(xrSuggestInteractionProfileBindings(xr_instance, &suggestedBindings));
+		LoadBindingsSet(*profile, {});
 	}
 
 	// Attach everything to the current session
@@ -770,8 +756,13 @@ void BaseInput::LoadBindingsSet(const InteractionProfile& profile, const std::st
 		return;
 
 	Json::Value bindingsRoot;
-	if (!ReadJson(utf8to16(bindingsPath), bindingsRoot)) {
-		OOVR_ABORTF("Failed to read and parse JSON binding descriptor: %s", bindingsPath.c_str());
+	if (!bindingsPath.empty()) {
+		std::string error;
+		if (!ReadJson(utf8to16(bindingsPath), bindingsRoot, error)) {
+			OOVR_ABORTF("Failed to read or parse JSON binding descriptor %s: %s", bindingsPath.c_str(), error.c_str());
+		}
+		if (!bindingsRoot["bindings"].isObject())
+			OOVR_ABORTF("Invalid bindings file %s, missing or invalid bindings object", bindingsPath.c_str());
 	}
 
 	// TODO aliases, if anyone uses them
@@ -779,8 +770,6 @@ void BaseInput::LoadBindingsSet(const InteractionProfile& profile, const std::st
 		OOVR_LOGF("WARNING: Ignoring alias_info from binding descriptor %s", bindingsPath.c_str());
 
 	const Json::Value& bindingsJson = bindingsRoot["bindings"];
-	if (!bindingsJson.isObject())
-		OOVR_ABORTF("Invalid bindings file %s, missing or invalid bindings object", bindingsPath.c_str());
 
 	// Index controllers require special handling of grip and touchpads
 	auto isKnuckles = bindingsRoot["controller_type"] == "knuckles";
@@ -1010,15 +999,11 @@ void BaseInput::LoadBindingsSet(const InteractionProfile& profile, const std::st
 		}
 	}
 
-	// If there aren't any bindings, that makes it simple
-	// If we didn't return then xrSuggestInteractionProfileBindings would fail
-	if (bindings.empty()) {
+	// Unbound profiles must not displace the application's usable profiles.
+	if (bindings.empty() && !bindingsPath.empty()) {
 		return;
 	}
 
-	// Only register legacy bindings if this profile is supported by the application. This is to avoid the runtime picking
-	// an input profile we know about but the game doesn't (eg khr/simple_controller) over one that the game has actually
-	// defined bindings for (eg htc/vive_controller).
 	for (const auto& legacyController : legacyControllers) {
 		profile.AddLegacyBindings(legacyController, bindings);
 	}

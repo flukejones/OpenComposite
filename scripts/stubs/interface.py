@@ -139,6 +139,7 @@ class Function:
     return_type: str
     args: List[libparse.arg_t]
     user_implemented: bool = False
+    aggregate_return: bool = False
 
     def args_str(self):
         """
@@ -157,7 +158,7 @@ class Function:
 def _read_headers(interface: InterfaceDef) -> List[Function]:
     filename = interface.header_prefix() / interface.header_filename()
     context = dict(_get_global_context())
-    libparse.read_context(context, filename, interface.namespace())
+    aggregates = _global_aggregates | libparse.read_context(context, filename, interface.namespace())
 
     funcs = []
     with open(filename) as f:
@@ -169,7 +170,8 @@ def _read_headers(interface: InterfaceDef) -> List[Function]:
             user_funcs = interface.spec.manual_functions.get(interface.proxy_class_name(), None)
             user_defined = user_funcs is not None and (func.name in user_funcs)
 
-            func = Function(func.name, func.return_type, func.args, user_defined)
+            func = Function(func.name, func.return_type, func.args, user_defined,
+                            func.return_type in aggregates)
             funcs.append(func)
 
     return funcs
@@ -177,6 +179,7 @@ def _read_headers(interface: InterfaceDef) -> List[Function]:
 
 # The global context - that's all the types from vrtypes.h and similar files
 _global_ctx = None
+_global_aggregates = set()
 
 
 def _get_global_context():
@@ -186,6 +189,6 @@ def _get_global_context():
 
     _global_ctx = dict()
     headers_dir = InterfaceDef.INTERFACES_DIR
-    libparse.read_context(_global_ctx, headers_dir / "interfaces/public_vrtypes.h", "vr")
-    libparse.read_context(_global_ctx, headers_dir / "interfaces/vrtypes.h", "vr")
+    _global_aggregates.update(libparse.read_context(_global_ctx, headers_dir / "interfaces/public_vrtypes.h", "vr"))
+    _global_aggregates.update(libparse.read_context(_global_ctx, headers_dir / "interfaces/vrtypes.h", "vr"))
     return _global_ctx

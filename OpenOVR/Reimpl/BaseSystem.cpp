@@ -118,6 +118,13 @@ bool BaseSystem::ComputeDistortion(EVREye eEye, float fU, float fV, DistortionCo
 	return BackendManager::Instance().GetPrimaryHMD()->ComputeDistortion(eEye, fU, fV, out);
 }
 
+bool BaseSystem::ComputeDistortionSet(EVREye eEye, EVRDistortionChannel eChannel, bool bAsNormalizedDeviceCoordinates,
+    uint32_t nNumCoordinates, const DistortionCoordinate_t* pInput, DistortionCoordinate_t* pOutput)
+{
+	OOVR_LOG_ONCE("OpenXR does not expose lens-distortion coordinates");
+	return false;
+}
+
 HmdMatrix34_t BaseSystem::GetEyeToHeadTransform(EVREye ovr_eye)
 {
 	return BackendManager::Instance().GetPrimaryHMD()->GetEyeToHeadTransform(ovr_eye);
@@ -466,7 +473,8 @@ uint32_t BaseSystem::GetStringTrackedDeviceProperty(vr::TrackedDeviceIndex_t unD
 	}
 
 	uint32_t ret = dev->GetStringTrackedDeviceProperty(prop, value, bufferSize, pErrorL);
-	p.print_result(value);
+	if (value && ret && ret <= bufferSize)
+		p.print_result(value);
 	return ret;
 }
 
@@ -663,9 +671,35 @@ const char* BaseSystem::GetEventTypeNameFromEnum(EVREventType eType)
 	STUBBED();
 }
 
+bool BaseSystem::PollNextEventWithPoseAndOverlays(ETrackingUniverseOrigin eOrigin, VREvent_t* pEvent, uint32_t uncbVREvent,
+    TrackedDevicePose_t* pTrackedDevicePose, VROverlayHandle_t* pulOverlayHandle)
+{
+	if (!pulOverlayHandle || !pEvent)
+		return false;
+	*pulOverlayHandle = k_ulOverlayHandleInvalid;
+	if (PollNextEventWithPose(eOrigin, pEvent, uncbVREvent, pTrackedDevicePose))
+		return true;
+	BaseOverlay* overlay = GetUnsafeBaseOverlay();
+	if (!overlay || !overlay->_PollNextEvent(pEvent, uncbVREvent, pulOverlayHandle))
+		return false;
+	if (pTrackedDevicePose)
+		*pTrackedDevicePose = {};
+	return true;
+}
+
 HiddenAreaMesh_t BaseSystem::GetHiddenAreaMesh(EVREye eEye, EHiddenAreaMeshType type)
 {
 	return BackendManager::Instance().GetPrimaryHMD()->GetHiddenAreaMesh(eEye, type);
+}
+
+bool BaseSystem::GetEyeTrackedFoveationCenter(HmdVector2_t* pNdcLeft, HmdVector2_t* pNdcRight)
+{
+	return false;
+}
+
+bool BaseSystem::GetEyeTrackedFoveationCenterForProjection(const HmdMatrix44_t* pProjMat, HmdVector2_t* pNdc)
+{
+	return false;
 }
 
 bool BaseSystem::GetControllerState(vr::TrackedDeviceIndex_t controllerDeviceIndex, vr::VRControllerState_t* controllerState, uint32_t controllerStateSize)
@@ -823,6 +857,12 @@ uint32_t BaseSystem::GetAppContainerFilePaths(VR_OUT_STRING() char* pchBuffer, u
 const char* BaseSystem::GetRuntimeVersion()
 {
 	return "1.16.8";
+}
+
+EVRInitError BaseSystem::SetSDKVersion(uint32_t nVersionMajor, uint32_t nVersionMinor, uint32_t nVersionBuild)
+{
+	OOVR_LOGF("Application OpenVR SDK %u.%u.%u", nVersionMajor, nVersionMinor, nVersionBuild);
+	return VRInitError_None;
 }
 
 DistortionCoordinates_t BaseSystem::ComputeDistortion(EVREye eEye, float fU, float fV)

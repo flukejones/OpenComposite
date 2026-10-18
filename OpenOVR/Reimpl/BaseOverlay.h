@@ -202,6 +202,8 @@ public:
 
 	// If an overlay needs input, this grabs the input and returns whether the input should preceed to the application
 	bool _HandleOverlayInput(vr::EVREye role, vr::TrackedDeviceIndex_t controllerDeviceIndex, vr::VRControllerState_t state);
+	/** Consumes one event from a live overlay and reports its handle. */
+	bool _PollNextEvent(vr::VREvent_t* event, uint32_t eventSize, vr::VROverlayHandle_t* handle);
 
 	// ---------------------------------------------
 	// Overlay management methods
@@ -212,6 +214,9 @@ public:
 
 	/** Creates a new named overlay. All overlays start hidden and with default settings. */
 	vr::EVROverlayError CreateOverlay(const char* pchOverlayKey, const char* pchOverlayName, vr::VROverlayHandle_t* pOverlayHandle);
+	/** Subview composition is unavailable; a valid parent returns RequestFailed without creating an overlay. */
+	vr::EVROverlayError CreateSubviewOverlay(vr::VROverlayHandle_t parentOverlayHandle, const char* pchSubviewOverlayKey,
+	    const char* pchSubviewOverlayName, vr::VROverlayHandle_t* pSubviewOverlayHandle);
 
 	/** Destroys the specified overlay. When an application calls VR_Shutdown all overlays created by that app are
 	 * automatically destroyed. */
@@ -379,6 +384,8 @@ public:
 
 	/** Shows the VR overlay.  For dashboard overlays, only the Dashboard Manager is allowed to call this. */
 	vr::EVROverlayError ShowOverlay(vr::VROverlayHandle_t ulOverlayHandle);
+	/** Standalone overlays have no subview position and return WrongTransformType. */
+	vr::EVROverlayError SetSubviewPosition(vr::VROverlayHandle_t ulOverlayHandle, float fX, float fY);
 
 	/** Hides the VR overlay.  For dashboard overlays, only the Dashboard Manager is allowed to call this. */
 	vr::EVROverlayError HideOverlay(vr::VROverlayHandle_t ulOverlayHandle);

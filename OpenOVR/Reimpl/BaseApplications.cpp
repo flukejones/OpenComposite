@@ -35,6 +35,14 @@ EVRApplicationError BaseApplications::GetApplicationKeyByIndex(uint32_t unApplic
 {
 	STUBBED();
 }
+
+EVRApplicationError BaseApplications::RegisterSubprocess(uint32_t nPid)
+{
+	if (!nPid)
+		return VRApplicationError_InvalidParameter;
+	OOVR_LOGF("Cross-process application handoff is unavailable for pid=%u", nPid);
+	return VRApplicationError_NotImplemented;
+}
 EVRApplicationError BaseApplications::GetApplicationKeyByProcessId(uint32_t unProcessId, VR_OUT_STRING() char* pchAppKeyBuffer, uint32_t unAppKeyBufferLen)
 {
 	STUBBED();

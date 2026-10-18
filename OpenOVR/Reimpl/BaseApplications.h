@@ -27,6 +27,7 @@ enum OOVR_EVRApplicationError {
 	VRApplicationError_PropertyNotSet = 201,		// The requested property was not set
 	VRApplicationError_UnknownProperty = 202,
 	VRApplicationError_InvalidParameter = 203,
+	VRApplicationError_NotImplemented = 300,
 	// clang-format on
 };
 
@@ -206,6 +207,8 @@ public:
 	 * If working directory is NULL or "" the directory portion of the binary path will be
 	 * the working directory. */
 	EVRApplicationError LaunchInternalProcess(const char* pchBinaryPath, const char* pchArguments, const char* pchWorkingDirectory);
+	/** Cross-process application handoff is unavailable; nonzero process IDs return NotImplemented. */
+	EVRApplicationError RegisterSubprocess(uint32_t nPid);
 
 	/** Returns the current scene process ID according to the application system. A scene process will get scene
 	 * focus once it starts rendering, but it will appear here once it calls VR_Init with the Scene application

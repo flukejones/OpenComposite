@@ -88,6 +88,24 @@ BaseOverlay::~BaseOverlay()
 	}
 }
 
+EVROverlayError BaseOverlay::CreateSubviewOverlay(VROverlayHandle_t parentOverlayHandle, const char* pchSubviewOverlayKey,
+    const char* pchSubviewOverlayName, VROverlayHandle_t* pSubviewOverlayHandle)
+{
+	if (!pchSubviewOverlayKey || !pchSubviewOverlayName || !pSubviewOverlayHandle)
+		return VROverlayError_InvalidParameter;
+	auto parent = reinterpret_cast<OverlayData*>(parentOverlayHandle);
+	if (!parent || !validOverlays.count(parent))
+		return VROverlayError_InvalidHandle;
+	OOVR_LOG_ONCE("Subview overlay composition is unavailable");
+	return VROverlayError_RequestFailed;
+}
+
+EVROverlayError BaseOverlay::SetSubviewPosition(VROverlayHandle_t ulOverlayHandle, float fX, float fY)
+{
+	USEH();
+	return VROverlayError_WrongTransformType;
+}
+
 int BaseOverlay::_BuildLayers(XrCompositionLayerBaseHeader* sceneLayer, XrCompositionLayerBaseHeader const* const*& layers)
 {
 	// Note that at least on MSVC, this shouldn't be doing any memory allocations
@@ -628,6 +646,21 @@ bool BaseOverlay::PollNextOverlayEvent(VROverlayHandle_t ulOverlayHandle, VREven
 	memcpy(pEvent, &e, std::min((uint32_t)sizeof(e), eventSize));
 
 	return true;
+}
+
+bool BaseOverlay::_PollNextEvent(VREvent_t* event, uint32_t eventSize, VROverlayHandle_t* handle)
+{
+	for (const auto& entry : overlays) {
+		auto* overlay = entry.second;
+		if (!overlay || overlay->eventQueue.empty())
+			continue;
+		auto candidate = reinterpret_cast<VROverlayHandle_t>(overlay);
+		if (PollNextOverlayEvent(candidate, event, eventSize)) {
+			*handle = candidate;
+			return true;
+		}
+	}
+	return false;
 }
 EVROverlayError BaseOverlay::GetOverlayInputMethod(VROverlayHandle_t ulOverlayHandle, VROverlayInputMethod* peInputMethod)
 {

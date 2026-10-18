@@ -358,6 +358,9 @@ float XrHMD::GetFloatTrackedDeviceProperty(vr::ETrackedDeviceProperty prop, vr::
 uint32_t XrHMD::GetStringTrackedDeviceProperty(vr::ETrackedDeviceProperty prop,
     char* value, uint32_t bufferSize, vr::ETrackedPropertyError* pErrorL)
 {
+	if (prop == vr::Prop_ModelNumber_String)
+		return CopyStringProperty(xr_gbl->systemProperties.systemName, value, bufferSize, pErrorL);
+
 	std::shared_lock lock(profile_mutex);
 
 	if (pErrorL)

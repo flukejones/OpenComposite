@@ -5,6 +5,14 @@ from stubs.interface import InterfaceDef
 from stubs.interface_spec import InterfaceSpec
 
 cflag_spec = re.compile(r"\[(?P<name>\w+)\]\s*=\s*(?P<value>.*)")
+mingw_abi = "defined(__MINGW32__) && defined(_WIN64)"
+
+
+def _output_args(func):
+    args = [f"{func.return_type}* output"]
+    if func.args:
+        args.append(func.args_str())
+    return ", ".join(args)
 
 
 def write_header(filename, iface):
@@ -23,10 +31,24 @@ def write_header(filename, iface):
 
 def _write_interface_header(fi, iface: InterfaceDef):
     cname = iface.proxy_class_name()
+    parent = f"{iface.namespace()}::{iface.interface()}"
+
+    if any(func.aggregate_return for func in iface.functions):
+        fi.write(f"\n#if {mingw_abi}\n"
+                 "// Microsoft C++ virtual aggregate returns pass this before the output buffer.\n"
+                 f"class {cname}_Abi {{\npublic:\n")
+        for func in iface.functions:
+            if func.aggregate_return:
+                fi.write(f"\tvirtual {func.return_type}* {func.name}({_output_args(func)}) = 0;\n")
+            else:
+                fi.write(f"\tvirtual {func.return_type} {func.name}({func.args_str()}) = 0;\n")
+        fi.write(f"}};\nusing {cname}_Interface = {cname}_Abi;\n#else\n"
+                 f"using {cname}_Interface = {parent};\n#endif\n")
+        parent = f"{cname}_Interface"
 
     fi.write(f"""
 #include "Reimpl/{iface.base_header()}"
-class {cname} : public {iface.namespace()}::{iface.interface()}, public CVRCommon {{
+class {cname} : public {parent}, public CVRCommon {{
 private:
     const std::shared_ptr<{iface.basename()}> base;
 public:
@@ -41,7 +63,13 @@ public:
     fi.write("\n")
 
     for func in iface.functions:
-        fi.write(f"\t{func.return_type} {func.name}({func.args_str()}) override;\n")
+        if func.aggregate_return:
+            fi.write(f"#if {mingw_abi}\n"
+                     f"\t{func.return_type}* {func.name}({_output_args(func)}) override;\n"
+                     f"\t{func.return_type} {func.name}({func.args_str()});\n#else\n"
+                     f"\t{func.return_type} {func.name}({func.args_str()}) override;\n#endif\n")
+        else:
+            fi.write(f"\t{func.return_type} {func.name}({func.args_str()}) override;\n")
 
     fi.write("};\n")
 
@@ -84,6 +112,10 @@ std::shared_ptr<{cls}> GetCreate{getter_name}() {{
 
         # Write out all the functions
         for f in ver.functions:
+            if f.aggregate_return:
+                fi.write(f"#if {mingw_abi}\n"
+                         f"{f.return_type}* {cname}::{f.name}({_output_args(f)}) {{\n"
+                         f"\t*output = {f.name}({f.args_names()});\n\treturn output;\n}}\n#endif\n")
             # If the user implemented this function, don't generate our version of it too
             if f.user_implemented:
                 continue

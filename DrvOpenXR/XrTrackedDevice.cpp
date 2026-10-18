@@ -39,10 +39,7 @@ uint32_t XrTrackedDevice::GetStringTrackedDeviceProperty(vr::ETrackedDevicePrope
 
 #define PROP(in, out)                                                                                  \
 	if (prop == in) {                                                                                  \
-		if (value != NULL && bufferSize > 0) {                                                         \
-			strcpy_s(value, bufferSize, out); /* FFS msvc - strncpy IS the secure version of strcpy */ \
-		}                                                                                              \
-		return (uint32_t)strlen(out) + 1;                                                              \
+		return CopyStringProperty(out, value, bufferSize, pErrorL);                                     \
 	}
 
 	// These have been validated against SteamVR

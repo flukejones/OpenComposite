@@ -366,20 +366,14 @@ uint32_t XrHMD::GetStringTrackedDeviceProperty(vr::ETrackedDeviceProperty prop,
 	if (profile) {
 		std::optional<std::string> ret = profile->GetProperty<std::string>(prop, HAND_NONE);
 		if (ret.has_value()) {
-			if (value != NULL && bufferSize > 0) {
-				strcpy_s(value, bufferSize, ret->c_str());
-			}
-			return ret->size() + 1;
+			return CopyStringProperty(*ret, value, bufferSize, pErrorL);
 		}
 	}
 
 #define PROP(in, out)                                                                                      \
 	do {                                                                                                   \
 		if (prop == in) {                                                                                  \
-			if (value != NULL && bufferSize > 0) {                                                         \
-				strcpy_s(value, bufferSize, out); /* FFS msvc - strncpy IS the secure version of strcpy */ \
-			}                                                                                              \
-			return (uint32_t)strlen(out) + 1;                                                              \
+			return CopyStringProperty(out, value, bufferSize, pErrorL);                                      \
 		}                                                                                                  \
 	} while (0)
 

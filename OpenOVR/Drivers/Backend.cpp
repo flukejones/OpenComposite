@@ -3,6 +3,7 @@
 #include "Backend.h"
 
 #include "Misc/Config.h"
+#include <cstring>
 
 // virtual destructor
 ITrackedDevice::~ITrackedDevice() {}
@@ -325,6 +326,27 @@ uint32_t ITrackedDevice::GetArrayTrackedDeviceProperty(vr::ETrackedDevicePropert
 	if (pError)
 		*pError = vr::TrackedProp_UnknownProperty;
 	return 0;
+}
+
+uint32_t ITrackedDevice::CopyStringProperty(std::string_view text, char* value,
+    uint32_t bufferSize, vr::ETrackedPropertyError* error)
+{
+	if (text.size() >= vr::k_unMaxPropertyStringSize) {
+		if (error)
+			*error = vr::TrackedProp_StringExceedsMaximumLength;
+		return 0;
+	}
+	const uint32_t required = static_cast<uint32_t>(text.size() + 1);
+	if (!value || bufferSize < required) {
+		if (error)
+			*error = vr::TrackedProp_BufferTooSmall;
+		return required;
+	}
+	std::memcpy(value, text.data(), text.size());
+	value[text.size()] = '\0';
+	if (error)
+		*error = vr::TrackedProp_Success;
+	return required;
 }
 
 uint32_t ITrackedDevice::GetStringTrackedDeviceProperty(vr::ETrackedDeviceProperty prop,

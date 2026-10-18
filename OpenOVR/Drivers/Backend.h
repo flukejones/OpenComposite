@@ -2,6 +2,7 @@
 #include "../OpenOVR/custom_types.h" // TODO move this into the OpenVR tree
 #include "generated/interfaces/vrtypes.h"
 #include <memory>
+#include <string_view>
 
 // for OOVR_Compositor_FrameTiming
 #include "../OpenOVR/Reimpl/BaseCompositor.h"
@@ -112,6 +113,11 @@ public:
 	virtual bool IsHandTrackingValid();
 
 	virtual void SetHandTrackingValid(bool valid);
+
+protected:
+	// Returns the required NUL-terminated extent; insufficient capacity leaves the destination untouched.
+	static uint32_t CopyStringProperty(std::string_view text, char* value, uint32_t bufferSize,
+	    vr::ETrackedPropertyError* error);
 
 private:
 	vr::TrackedDeviceIndex_t deviceIndex = vr::k_unTrackedDeviceIndexInvalid;

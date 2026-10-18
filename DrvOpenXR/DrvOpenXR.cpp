@@ -4,6 +4,10 @@
 
 #include "DrvOpenXR.h"
 
+#ifdef _WIN32
+#include <shlwapi.h>
+#endif
+
 #include "../OpenOVR/Misc/Config.h"
 #include "../OpenOVR/Misc/android_api.h"
 #include "../OpenOVR/Misc/xr_ext.h"

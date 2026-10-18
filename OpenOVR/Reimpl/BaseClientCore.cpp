@@ -25,7 +25,7 @@ static std::wstring_convert<std::codecvt_utf8<wchar_t>> CHAR_CONV;
 
 static bool ReadJson(wstring path, Json::Value& result)
 {
-	std::ifstream in(APISTR(path), std::ios::binary);
+	std::ifstream in(APISTR(path).c_str(), std::ios::binary);
 	if (in) {
 		std::stringstream contents;
 		contents << in.rdbuf();
@@ -39,7 +39,7 @@ static bool ReadJson(wstring path, Json::Value& result)
 
 static void WriteJson(wstring path, const Json::Value& value)
 {
-	std::ofstream out(APISTR(path), std::ios::binary);
+	std::ofstream out(APISTR(path).c_str(), std::ios::binary);
 	if (!out) {
 		OOVR_ABORTF("Failed to write applist json: %s", strerror(errno));
 	}

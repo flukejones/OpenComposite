@@ -28,6 +28,7 @@ set(GENERATED_DIR ${CMAKE_BINARY_DIR}/generated)
 # Platform-dependent flags
 # Support Vulkan on Linux instead of DirectX
 if (WIN32)
+	add_compile_definitions(WIN32)
 	set(GRAPHICS_API_SUPPORT_FLAGS -DSUPPORT_DX -DSUPPORT_DX11 -DSUPPORT_DX12 -DSUPPORT_VK -DSUPPORT_GL)
 elseif (ANDROID)
 	set(GRAPHICS_API_SUPPORT_FLAGS -DSUPPORT_VK -DSUPPORT_GLES)
@@ -64,7 +65,7 @@ else ()
 	# In general using private symbols is a great idea, and it's something we'd want to do anyway.
 	# There is also -Bsymbolic set when linking the final shared library, see the bottom of this file
 	# FIXME the Vulkan functions still get exported, hopefully they won't fight with the application's ones.
-    add_definitions(-fvisibility=hidden)
+    add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:-fvisibility=hidden>)
 	add_compile_options(-Wall -Wextra -Wpedantic -pedantic-errors -Wno-unused-parameter -Wno-missing-field-initializers -Wno-format-security)
 	set(ERROR_ON_WARNING_FLAG -Werror)
 endif ()
@@ -87,14 +88,14 @@ target_include_directories(OpenVR INTERFACE OpenVRHeaders) # TODO make this priv
 add_library(Vulkan INTERFACE)
 
 if (WIN32)
-	# On Windows, use the bundled copy
-	target_include_directories(Vulkan INTERFACE libs/vulkan/Include) # TODO make this private and put the public headers elsewhere
+	set(Vulkan_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libs/vulkan/Include" CACHE PATH "Windows Vulkan headers")
 	if ("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
-		target_link_libraries(Vulkan INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/libs/vulkan/Lib/vulkan-1.lib)
+		set(Vulkan_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/libs/vulkan/Lib/vulkan-1.lib" CACHE FILEPATH "Windows Vulkan import library")
 	else ()
-		target_link_libraries(Vulkan INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/libs/vulkan/Lib32/vulkan-1.lib)
+		set(Vulkan_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/libs/vulkan/Lib32/vulkan-1.lib" CACHE FILEPATH "Windows Vulkan import library")
 	endif ()
-
+	target_include_directories(Vulkan INTERFACE "${Vulkan_INCLUDE_DIR}")
+	target_link_libraries(Vulkan INTERFACE "${Vulkan_LIBRARY}")
 	target_compile_definitions(Vulkan INTERFACE -DVK_USE_PLATFORM_WIN32_KHR)
 elseif (ANDROID)
 	# Let the system sort out the linkage, we'll just use our included headers
@@ -516,6 +517,9 @@ endif ()
 if (NOT WIN32)
 	target_link_libraries(OCOVR PRIVATE -Wl,--no-undefined)
 	target_link_libraries(OCOVR PUBLIC -Wl,--start-group OCCore DrvOpenXR -Wl,--end-group)
+elseif (MINGW)
+	target_link_libraries(OCOVR PRIVATE -Wl,--start-group OCCore DrvOpenXR -Wl,--end-group
+		d3d11 d3d12 d3dcompiler dxgi shlwapi)
 else ()
 	# On Windows this isn't a problem since the linker knows how to figure this stuff out
 	target_link_libraries(OCOVR OCCore DrvOpenXR)

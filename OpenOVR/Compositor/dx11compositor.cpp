@@ -350,7 +350,9 @@ void DX11Compositor::CopyToSwapchain(const vr::Texture_t* texture, const vr::VRT
 		context->RSGetState(&pRSState);
 		context->RSSetState(nullptr);
 
-		D3D11_VIEWPORT viewport = CD3D11_VIEWPORT(src, swapchain_rtvs[currentIndex]);
+		D3D11_TEXTURE2D_DESC sourceDesc;
+		src->GetDesc(&sourceDesc);
+		D3D11_VIEWPORT viewport = { 0.f, 0.f, float(sourceDesc.Width), float(sourceDesc.Height), 0.f, 1.f };
 		context->RSSetViewports(1, &viewport);
 		D3D11_RECT rects[1];
 		rects[0].top = 0;

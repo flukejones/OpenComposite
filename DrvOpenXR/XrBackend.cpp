@@ -262,9 +262,11 @@ void XrBackend::CheckOrInitCompositors(const vr::Texture_t* tex)
 		case vr::TextureType_Vulkan: {
 			const vr::VRVulkanTextureData_t* vktex = (vr::VRVulkanTextureData_t*)tex->handle;
 
-			VkPhysicalDevice xr_desire;
-			// Regardless of error checking, we have to call this or we get crazy validation errors.
-			xr_ext->xrGetVulkanGraphicsDeviceKHR(xr_instance, xr_system, vktex->m_pInstance, &xr_desire);
+			XrGraphicsRequirementsVulkanKHR graphicsRequirements{ XR_TYPE_GRAPHICS_REQUIREMENTS_VULKAN_KHR };
+			OOVR_FAILED_XR_ABORT(xr_ext->xrGetVulkanGraphicsRequirementsKHR(xr_instance, xr_system, &graphicsRequirements));
+
+			VkPhysicalDevice xr_desire = VK_NULL_HANDLE;
+			OOVR_FAILED_XR_ABORT(xr_ext->xrGetVulkanGraphicsDeviceKHR(xr_instance, xr_system, vktex->m_pInstance, &xr_desire));
 
 			if (xr_desire != vktex->m_pPhysicalDevice) {
 				OOVR_ABORTF("The VkPhysicalDevice that the OpenVR app (%p) used is different from the one that the OpenXR runtime used (%p)!\n"
@@ -1209,36 +1211,7 @@ const void* XrBackend::GetCurrentGraphicsBinding()
 void XrBackend::VkGetPhysicalDevice(VkInstance instance, VkPhysicalDevice* out)
 {
 	*out = VK_NULL_HANDLE;
-
-	TemporaryVk* vk = temporaryGraphics->GetAsVk();
-	if (vk == nullptr)
-		OOVR_ABORT("Not using temporary Vulkan instance");
-
-	// Find the UUID of the physical device the temporary instance is running on
-	VkPhysicalDeviceIDProperties idProps = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES };
-	VkPhysicalDeviceProperties2 props = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, &idProps };
-	vkGetPhysicalDeviceProperties2(vk->physicalDevice, &props);
-
-	// Look through all the physical devices on the target instance and find the matching one
-	uint32_t devCount;
-	OOVR_FAILED_VK_ABORT(vkEnumeratePhysicalDevices(instance, &devCount, nullptr));
-	std::vector<VkPhysicalDevice> physicalDevices(devCount);
-	OOVR_FAILED_VK_ABORT(vkEnumeratePhysicalDevices(instance, &devCount, physicalDevices.data()));
-
-	for (VkPhysicalDevice phy : physicalDevices) {
-		VkPhysicalDeviceIDProperties devIdProps = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES };
-		VkPhysicalDeviceProperties2 devProps = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, &devIdProps };
-		vkGetPhysicalDeviceProperties2(phy, &devProps);
-
-		if (memcmp(devIdProps.deviceUUID, idProps.deviceUUID, sizeof(devIdProps.deviceUUID)) != 0)
-			continue;
-
-		// Found it
-		*out = phy;
-		return;
-	}
-
-	OOVR_ABORT("Could not find matching Vulkan physical device for instance");
+	OOVR_FAILED_XR_ABORT(xr_ext->xrGetVulkanGraphicsDeviceKHR(xr_instance, xr_system, instance, out));
 }
 
 #endif

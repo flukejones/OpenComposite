@@ -103,18 +103,12 @@ uint32_t XrController::GetStringTrackedDeviceProperty(vr::ETrackedDeviceProperty
 
 	std::optional<std::string> ret = profile.GetProperty<std::string>(prop, GetHand());
 	if (ret.has_value()) {
-		if (value != NULL && bufferSize > 0) {
-			strcpy_s(value, bufferSize, ret->c_str());
-		}
-		return ret->size() + 1;
+		return CopyStringProperty(*ret, value, bufferSize, pErrorL);
 	}
 
 #define PROP(in, out)                                                                                  \
 	if (prop == in) {                                                                                  \
-		if (value != NULL && bufferSize > 0) {                                                         \
-			strcpy_s(value, bufferSize, out); /* FFS msvc - strncpy IS the secure version of strcpy */ \
-		}                                                                                              \
-		return (uint32_t)strlen(out) + 1;                                                              \
+		return CopyStringProperty(out, value, bufferSize, pErrorL);                                     \
 	}
 
 	// Resonite determines controller type by using render model name, if it can't recognize - it will load generic controller

@@ -15,6 +15,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
 
 // Specific to OCOVR
 #include "Drivers/Backend.h"
@@ -47,13 +48,17 @@ class CVRCorrectLayout : public _InheritCVRLayout, public CVRCommon {
 // Also for the basis of this typedef, see: https://stackoverflow.com/a/26276805
 using correct_layout_unique = std::unique_ptr<CVRCorrectLayout, std::function<void(CVRCorrectLayout*)>>;
 
+// FnTable acquisition re-enters the C++ interface factory on the same thread.
+static std::recursive_mutex interfaceMutex;
 static std::map<std::string, correct_layout_unique> interfaces;
 
 VR_INTERFACE void* VR_CALLTYPE VR_GetGenericInterface(const char* interfaceVersion, EVRInitError* error)
 {
+	std::lock_guard<std::recursive_mutex> lock(interfaceMutex);
 	if (!running) {
 		OOVR_LOGF("[INFO] VR_GetGenericInterface called while OOVR not running, setting error=NotInitialized, for interfaceVersion=%s", interfaceVersion);
-		*error = VRInitError_Init_NotInitialized;
+		if (error)
+			*error = VRInitError_Init_NotInitialized;
 		return NULL;
 	}
 
@@ -221,6 +226,7 @@ VR_INTERFACE uint32_t VR_CALLTYPE VR_InitInternal(EVRInitError* peError, EVRAppl
 
 VR_INTERFACE uint32_t VR_CALLTYPE VR_InitInternal2(EVRInitError* peError, EVRApplicationType eApplicationType, const char* pStartupInfo)
 {
+	std::lock_guard<std::recursive_mutex> lock(interfaceMutex);
 	OOVR_LOG_ONCEF("Initializing OpenComposite - revision %s", OC_VERSION);
 	BaseClientCore::appType = eApplicationType;
 	if (peError) {
@@ -281,6 +287,7 @@ VR_INTERFACE uint32_t VR_CALLTYPE VR_InitInternal2(EVRInitError* peError, EVRApp
 
 VR_INTERFACE bool VR_CALLTYPE VR_IsHmdPresent()
 {
+	std::lock_guard<std::recursive_mutex> lock(interfaceMutex);
 	// If we're already running, then Oculus's implementation fails with XR_ERROR_RUNTIME_FAILURE
 	if (running)
 		return true;
@@ -344,6 +351,7 @@ VR_INTERFACE const char* VR_CALLTYPE VR_RuntimePath()
 
 VR_INTERFACE void VR_CALLTYPE VR_ShutdownInternal()
 {
+	std::lock_guard<std::recursive_mutex> lock(interfaceMutex);
 	OOVR_LOG("OpenComposite shutdown");
 
 	// Reset interfaces
@@ -359,6 +367,7 @@ VR_INTERFACE void VR_CALLTYPE VR_ShutdownInternal()
 
 VR_INTERFACE void* VRClientCoreFactory(const char* pInterfaceName, int* pReturnCode)
 {
+	std::lock_guard<std::recursive_mutex> lock(interfaceMutex);
 	if (alternativeCoreFactory) {
 	use_alt:
 		return alternativeCoreFactory(pInterfaceName, pReturnCode);

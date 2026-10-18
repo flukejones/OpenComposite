@@ -375,7 +375,7 @@ void DrvOpenXR::ShutdownSession()
 			struct timespec ts = { 0, durationMs * 1000000 };
 			nanosleep(&ts, &ts);
 #endif
-			currentBackend->PumpEvents();
+			currentBackend->PollSessionEvents();
 		}
 	}
 

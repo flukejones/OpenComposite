@@ -42,6 +42,8 @@ public:
 	 */
 	void OnSessionCreated();
 
+	// Drains lifecycle events without attaching controller actions during session setup or teardown.
+	void PollSessionEvents();
 	void PrepareForSessionShutdown();
 
 	const void* GetCurrentGraphicsBinding();

@@ -759,7 +759,7 @@ bool XrBackend::IsInputAvailable()
 	return sessionState == XR_SESSION_STATE_FOCUSED;
 }
 
-void XrBackend::PumpEvents()
+void XrBackend::PollSessionEvents()
 {
 	// Poll for OpenXR events
 	// TODO filter by session?
@@ -826,6 +826,11 @@ void XrBackend::PumpEvents()
 		}
 
 	} // while loop
+}
+
+void XrBackend::PumpEvents()
+{
+	PollSessionEvents();
 
 	/*
 	   We check for AreActionsLoaded here because:
@@ -857,7 +862,7 @@ void XrBackend::OnSessionCreated()
 	sessionActive = false;
 	renderingFrame = false;
 
-	PumpEvents();
+	PollSessionEvents();
 
 	// Wait until we transition to the idle state.
 	// This sets the time, so OpenXR calls which use that will work correctly.
@@ -873,7 +878,7 @@ void XrBackend::OnSessionCreated()
 		nanosleep(&ts, &ts);
 #endif
 
-		PumpEvents();
+		PollSessionEvents();
 	}
 }
 

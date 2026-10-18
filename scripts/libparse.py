@@ -9,7 +9,7 @@ regex = re.compile(regex_src)
 arg_src = r"(?P<type>[^=]+ \**)(?P<name>\w+)(?: = (?P<default>.*))?"
 argr = re.compile(arg_src)
 
-typedecl = re.compile(r"^(?:enum|struct)\s+(?P<name>\w+)$")
+typedecl = re.compile(r"^(?P<kind>enum(?:\s+class)?|struct|union)\s+(?P<name>\w+)(?:\s*:\s*\w+)?$")
 
 typedef = re.compile(r"^typedef\s+(?P<def>[\w\s\d_\*&]+)\s+(?P<name>\w+);$")
 typedef_struct = re.compile(r"^typedef\s+(?:struct|union)$")
@@ -72,16 +72,19 @@ def read_context(context, filename, namespace):
     :param filename: The path to the file - either a string or pathlib Path
     :param namespace: The namespace to be prepended to the typenames. If this is an empty string, types will
     be prepended with two colons.
+    :return: Namespace-qualified aggregate types declared by this header.
     """
 
     if not namespace:
         raise RuntimeError("Automatic namespace detection not yet implemented! Please specify a namespace!")
 
+    aggregates = set()
     with open(filename) as fi:
         tdstruct_start = None
         for line in nice_lines(fi):
             line = line.strip()
             match = typedecl.match(line)
+            aggregate = match is not None and match.group("kind") in ("struct", "union")
             if not match:
                 match = typedef.match(line)
 
@@ -89,12 +92,15 @@ def read_context(context, filename, namespace):
                 match = typedef_struct_end.match(line)
                 if match:
                     tdstruct_start = None
+                    aggregate = True
                 else:
                     continue
 
             if match:
                 name = match.group("name")
                 context[name] = namespace + "::" + name  # TODO
+                if aggregate:
+                    aggregates.add(context[name])
             else:
                 match = typedef_struct.match(line)
                 if match:
@@ -102,6 +108,7 @@ def read_context(context, filename, namespace):
 
         if tdstruct_start:
             raise Exception("Cound not find closing for structure '%s'" % tdstruct_start)
+    return aggregates
 
 
 def convert_type(t, context):

@@ -628,6 +628,7 @@ private:
 		std::string shortName; // The last part of the name, eg 'Test1'
 		ActionRequirement requirement = ActionRequirement::Suggested;
 		bool haptic = false;
+		bool hasUnsupportedVector3Binding = false;
 		ActionType type = ActionType::Boolean;
 		ActionSet* set = nullptr;
 		std::string setName; // The name of the action set - set before we've enumerated the action sets, eg 'main'

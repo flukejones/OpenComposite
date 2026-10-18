@@ -47,6 +47,13 @@ BaseCompositor::~BaseCompositor()
 {
 }
 
+ovr_enum_t BaseCompositor::GetSubmitTexture(Texture_t* pOutTexture, bool* pNeedsFlush, OOVR_EVRCompositorTextureUsage eUsage,
+    const Texture_t* pTexture, const VRTextureBounds_t* pBounds, EVRSubmitFlags flags)
+{
+	OOVR_LOG_ONCE("Shared submit textures are unavailable; use Submit with application-owned textures");
+	return VRCompositorError_RequestFailed;
+}
+
 void BaseCompositor::SetTrackingSpace(ETrackingUniverseOrigin eOrigin)
 {
 	XrReferenceSpaceType origin = XR_REFERENCE_SPACE_TYPE_STAGE;

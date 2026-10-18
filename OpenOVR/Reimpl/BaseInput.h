@@ -267,6 +267,10 @@ public:
 	/** Sets the dominant hand for the user for this application. */
 	EVRInputError SetDominantHand(vr::ETrackedControllerRole eDominantHand);
 
+	/** Eye tracking has no input source; valid requests return VRInputError_NoData. */
+	EVRInputError GetEyeTrackingDataRelativeToNow(VRActionHandle_t action, ETrackingUniverseOrigin eOrigin, float fPredictedSecondsFromNow, vr::VREyeTrackingData_t* pEyeTrackingData, uint32_t unEyeTrackingDataSize);
+	EVRInputError GetEyeTrackingDataForNextFrame(VRActionHandle_t action, ETrackingUniverseOrigin eOrigin, vr::VREyeTrackingData_t* pEyeTrackingData, uint32_t unEyeTrackingDataSize);
+
 	// ---------------  Static Skeletal Data ------------------- //
 
 	/** Reads the number of bones in skeleton associated with the given action */
@@ -413,6 +417,8 @@ public: // INTERNAL FUNCTIONS
 	inline uint64_t GetSyncSerial() const { return syncSerial; }
 
 private:
+	EVRInputError ReadEyeTrackingData(VRActionHandle_t action, ETrackingUniverseOrigin origin, vr::VREyeTrackingData_t* data, uint32_t size);
+
 	inline static std::string startupManifest;
 
 	enum class ActionRequirement {
@@ -429,6 +435,7 @@ private:
 		Vibration,
 		Pose,
 		Skeleton,
+		EyeTracking,
 	};
 
 	enum class ActionSetUsage {

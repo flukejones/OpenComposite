@@ -454,6 +454,8 @@ EVRInputError BaseInput::SetActionManifestPath(const char* pchActionManifestPath
 			action.type = ActionType::Pose;
 		else if (type == "skeleton")
 			action.type = ActionType::Skeleton;
+		else if (type == "eyetracking")
+			action.type = ActionType::EyeTracking;
 		else
 			OOVR_ABORTF("Invalid action type '%s' for action '%s'", type.c_str(), action.fullName.c_str());
 
@@ -577,6 +579,9 @@ EVRInputError BaseInput::SetActionManifestPath(const char* pchActionManifestPath
 			continue;
 		case ActionType::Skeleton:
 			// Don't actually create an action for skeletons, since we'll get their data from the hand tracking extension.
+			continue;
+		case ActionType::EyeTracking:
+			OOVR_LOGF("Eye tracking action %s is unavailable: no OpenXR eye input source", act->fullName.c_str());
 			continue;
 		default:
 			OOVR_SOFT_ABORTF("Bad action type while remapping action %s: %d", act->fullName.c_str(), static_cast<int>(act->type));
@@ -826,6 +831,8 @@ void BaseInput::LoadBindingsSet(const InteractionProfile& profile, const std::st
 					continue;
 				}
 
+				if (action->type == ActionType::EyeTracking)
+					continue;
 				if (srcJson["mode"].asString() == "dpad") {
 					LoadDpadAction(profile, importBasePath, inputName, srcJson["parameters"]["sub_mode"].asString(), action, bindings, isKnuckles);
 					continue;
@@ -951,6 +958,9 @@ void BaseInput::LoadBindingsSet(const InteractionProfile& profile, const std::st
 				OOVR_LOGF("Missing action '%s' in bindings file '%s'", actionName.c_str(), bindingsPath.c_str());
 				continue;
 			}
+			if (action->type == ActionType::EyeTracking) {
+				continue;
+			}
 
 			PoseBindingInfo info;
 
@@ -999,6 +1009,9 @@ void BaseInput::LoadBindingsSet(const InteractionProfile& profile, const std::st
 			Action* action = actions.LookupItem(actionName);
 			if (action == nullptr)
 				OOVR_ABORTF("Missing haptic action '%s' in bindings file '%s'", actionName.c_str(), bindingsPath.c_str());
+			if (action->type == ActionType::EyeTracking) {
+				continue;
+			}
 
 			if (!profile.IsInputPathValid(pathStr)) {
 				OOVR_ABORTF("Built invalid input path %s from pose action %s", pathStr.c_str(), actionName.c_str());
@@ -1589,6 +1602,8 @@ EVRInputError BaseInput::GetDigitalActionData(VRActionHandle_t action, InputDigi
     VRInputValueHandle_t ulRestrictToDevice)
 {
 	GET_ACTION_FROM_HANDLE(act, action);
+	if (act->type == ActionType::EyeTracking)
+		return VRInputError_WrongType;
 
 	ZeroMemory(pActionData, unActionDataSize);
 	OOVR_FALSE_ABORT(unActionDataSize == sizeof(*pActionData));
@@ -1642,6 +1657,8 @@ EVRInputError BaseInput::GetAnalogActionData(VRActionHandle_t action, InputAnalo
 {
 
 	GET_ACTION_FROM_HANDLE(act, action);
+	if (act->type == ActionType::EyeTracking)
+		return VRInputError_WrongType;
 	ZeroMemory(pActionData, unActionDataSize);
 	OOVR_FALSE_ABORT(unActionDataSize == sizeof(*pActionData));
 
@@ -1783,6 +1800,8 @@ EVRInputError BaseInput::GetPoseActionData(VRActionHandle_t action, ETrackingUni
     InputPoseActionData_t* pActionData, uint32_t unActionDataSize, VRInputValueHandle_t ulRestrictToDevice)
 {
 	GET_ACTION_FROM_HANDLE(act, action);
+	if (act->type == ActionType::EyeTracking)
+		return VRInputError_WrongType;
 
 	ZeroMemory(pActionData, unActionDataSize);
 	OOVR_FALSE_ABORT(unActionDataSize == sizeof(*pActionData));
@@ -1930,6 +1949,8 @@ EVRInputError BaseInput::GetSkeletalActionData(VRActionHandle_t actionHandle, In
 	OOVR_FALSE_ABORT(unActionDataSize == sizeof(*out));
 
 	GET_ACTION_FROM_HANDLE(action, actionHandle);
+	if (action->type == ActionType::EyeTracking)
+		return VRInputError_WrongType;
 
 	// Zero out the output data, leaving:
 	// bActive = false
@@ -1965,6 +1986,33 @@ EVRInputError BaseInput::SetDominantHand(vr::ETrackedControllerRole eDominantHan
 		return VRInputError_PermissionDenied;
 	}
 }
+EVRInputError BaseInput::ReadEyeTrackingData(VRActionHandle_t action, ETrackingUniverseOrigin origin,
+    VREyeTrackingData_t* data, uint32_t size)
+{
+	if (!data || size != sizeof(*data) ||
+	    (origin != TrackingUniverseSeated && origin != TrackingUniverseStanding && origin != TrackingUniverseRawAndUncalibrated))
+		return VRInputError_InvalidParam;
+	GET_ACTION_FROM_HANDLE(act, action);
+	if (act->type != ActionType::EyeTracking)
+		return VRInputError_WrongType;
+	*data = {};
+	return VRInputError_NoData;
+}
+
+EVRInputError BaseInput::GetEyeTrackingDataRelativeToNow(VRActionHandle_t action, ETrackingUniverseOrigin eOrigin,
+    float fPredictedSecondsFromNow, VREyeTrackingData_t* pEyeTrackingData, uint32_t unEyeTrackingDataSize)
+{
+	if (!std::isfinite(fPredictedSecondsFromNow))
+		return VRInputError_InvalidParam;
+	return ReadEyeTrackingData(action, eOrigin, pEyeTrackingData, unEyeTrackingDataSize);
+}
+
+EVRInputError BaseInput::GetEyeTrackingDataForNextFrame(VRActionHandle_t action, ETrackingUniverseOrigin eOrigin,
+    VREyeTrackingData_t* pEyeTrackingData, uint32_t unEyeTrackingDataSize)
+{
+	return ReadEyeTrackingData(action, eOrigin, pEyeTrackingData, unEyeTrackingDataSize);
+}
+
 EVRInputError BaseInput::GetBoneCount(VRActionHandle_t action, uint32_t* pBoneCount)
 {
 	// Maybe we should check the action?
@@ -2263,6 +2311,8 @@ EVRInputError BaseInput::TriggerHapticVibrationAction(VRActionHandle_t action, f
     float fFrequency, float fAmplitude, VRInputValueHandle_t ulRestrictToDevice)
 {
 	GET_ACTION_FROM_HANDLE(act, action);
+	if (act->type == ActionType::EyeTracking)
+		return VRInputError_WrongType;
 
 	if (act->type != ActionType::Vibration) {
 		OOVR_ABORTF("Cannot trigger vibration on non-vibration (type=%d) action '%s'", static_cast<int>(act->type), act->fullName.c_str());
@@ -2312,6 +2362,8 @@ EVRInputError BaseInput::GetActionOrigins(VRActionSetHandle_t actionSetHandle, V
 	}
 
 	ZeroMemory(originsOut, originOutCount * sizeof(*originsOut));
+	if (act->type == ActionType::EyeTracking)
+		return VRInputError_NoData;
 
 	std::set<std::string> sources;
 	XrBoundSourcesForActionEnumerateInfo info = { XR_TYPE_BOUND_SOURCES_FOR_ACTION_ENUMERATE_INFO };
@@ -2439,6 +2491,8 @@ EVRInputError BaseInput::GetActionBindingInfo(VRActionHandle_t actionHandle, OOV
 	// FIXME support any number of sources
 	// TODO does this support passing in unBindingInfoSize=0 and reading the required size? Check with SteamVR.
 	GET_ACTION_FROM_HANDLE(action, actionHandle);
+	if (action->type == ActionType::EyeTracking)
+		return VRInputError_NoData;
 
 	XrBoundSourcesForActionEnumerateInfo enumInfo = { XR_TYPE_BOUND_SOURCES_FOR_ACTION_ENUMERATE_INFO };
 	enumInfo.action = action->xr;

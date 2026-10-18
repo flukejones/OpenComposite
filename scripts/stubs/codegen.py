@@ -174,7 +174,7 @@ def _build_fntable(fi, ver: InterfaceDef):
 
     # Generate the getter
     fi.write(
-        f"void** {cname}::_GetStatFuncList() {{ {inst_name} = this; return {func_array_name}; }}\n")
+        f"void** {cname}::_GetStatFuncList() {{ if ({inst_name} != this) {inst_name} = this; return {func_array_name}; }}\n")
 
 
 def write_stub_footer(fi, interfaces: List[InterfaceSpec]):

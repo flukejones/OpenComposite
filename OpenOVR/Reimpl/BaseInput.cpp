@@ -571,8 +571,7 @@ EVRInputError BaseInput::SetActionManifestPath(const char* pchActionManifestPath
 			info.actionType = XR_ACTION_TYPE_VECTOR2F_INPUT;
 			break;
 		case ActionType::Vector3:
-			STUBBED(); // Not XR_STUBBED since this didn't work before, and I've certainly never heard of a use for it
-			break;
+			continue;
 		case ActionType::Vibration:
 			info.actionType = XR_ACTION_TYPE_VIBRATION_OUTPUT;
 			break;
@@ -820,6 +819,11 @@ void BaseInput::LoadBindingsSet(const InteractionProfile& profile, const std::st
 					continue;
 				}
 
+				if (action->type == ActionType::Vector3) {
+					action->hasUnsupportedVector3Binding = true;
+					OOVR_LOGF("Vector3 binding has no OpenXR input provider: action=%s path=%s", action->fullName.c_str(), importBasePath.c_str());
+					continue;
+				}
 				if (action->type == ActionType::EyeTracking)
 					continue;
 				if (srcJson["mode"].asString() == "dpad") {
@@ -947,7 +951,8 @@ void BaseInput::LoadBindingsSet(const InteractionProfile& profile, const std::st
 				OOVR_LOGF("Missing action '%s' in bindings file '%s'", actionName.c_str(), bindingsPath.c_str());
 				continue;
 			}
-			if (action->type == ActionType::EyeTracking) {
+			if (action->type == ActionType::EyeTracking || action->type == ActionType::Vector3) {
+				action->hasUnsupportedVector3Binding |= action->type == ActionType::Vector3;
 				continue;
 			}
 
@@ -998,7 +1003,8 @@ void BaseInput::LoadBindingsSet(const InteractionProfile& profile, const std::st
 			Action* action = actions.LookupItem(actionName);
 			if (action == nullptr)
 				OOVR_ABORTF("Missing haptic action '%s' in bindings file '%s'", actionName.c_str(), bindingsPath.c_str());
-			if (action->type == ActionType::EyeTracking) {
+			if (action->type == ActionType::EyeTracking || action->type == ActionType::Vector3) {
+				action->hasUnsupportedVector3Binding |= action->type == ActionType::Vector3;
 				continue;
 			}
 
@@ -1587,7 +1593,7 @@ EVRInputError BaseInput::GetDigitalActionData(VRActionHandle_t action, InputDigi
     VRInputValueHandle_t ulRestrictToDevice)
 {
 	GET_ACTION_FROM_HANDLE(act, action);
-	if (act->type == ActionType::EyeTracking)
+	if (act->type == ActionType::EyeTracking || act->type == ActionType::Vector3)
 		return VRInputError_WrongType;
 
 	ZeroMemory(pActionData, unActionDataSize);
@@ -1644,6 +1650,12 @@ EVRInputError BaseInput::GetAnalogActionData(VRActionHandle_t action, InputAnalo
 	GET_ACTION_FROM_HANDLE(act, action);
 	if (act->type == ActionType::EyeTracking)
 		return VRInputError_WrongType;
+	if (act->type == ActionType::Vector3) {
+		if (!pActionData || unActionDataSize != sizeof(*pActionData))
+			return VRInputError_InvalidParam;
+		*pActionData = {};
+		return act->hasUnsupportedVector3Binding ? VRInputError_NoData : VRInputError_None;
+	}
 	ZeroMemory(pActionData, unActionDataSize);
 	OOVR_FALSE_ABORT(unActionDataSize == sizeof(*pActionData));
 
@@ -1764,9 +1776,6 @@ EVRInputError BaseInput::GetAnalogActionData(VRActionHandle_t action, InputAnalo
 			pActionData->deltaY = act->deltaState.y;
 			break;
 		}
-		case ActionType::Vector3:
-			OOVR_ABORTF("Input type vector3 unsupported: %s", act->fullName.c_str());
-			break;
 		default:
 			OOVR_ABORTF("Invalid action type %d for action %s",
 			    static_cast<int>(act->type), act->fullName.c_str());
@@ -1785,7 +1794,7 @@ EVRInputError BaseInput::GetPoseActionData(VRActionHandle_t action, ETrackingUni
     InputPoseActionData_t* pActionData, uint32_t unActionDataSize, VRInputValueHandle_t ulRestrictToDevice)
 {
 	GET_ACTION_FROM_HANDLE(act, action);
-	if (act->type == ActionType::EyeTracking)
+	if (act->type == ActionType::EyeTracking || act->type == ActionType::Vector3)
 		return VRInputError_WrongType;
 
 	ZeroMemory(pActionData, unActionDataSize);
@@ -1934,7 +1943,7 @@ EVRInputError BaseInput::GetSkeletalActionData(VRActionHandle_t actionHandle, In
 	OOVR_FALSE_ABORT(unActionDataSize == sizeof(*out));
 
 	GET_ACTION_FROM_HANDLE(action, actionHandle);
-	if (action->type == ActionType::EyeTracking)
+	if (action->type == ActionType::EyeTracking || action->type == ActionType::Vector3)
 		return VRInputError_WrongType;
 
 	// Zero out the output data, leaving:
@@ -2296,7 +2305,7 @@ EVRInputError BaseInput::TriggerHapticVibrationAction(VRActionHandle_t action, f
     float fFrequency, float fAmplitude, VRInputValueHandle_t ulRestrictToDevice)
 {
 	GET_ACTION_FROM_HANDLE(act, action);
-	if (act->type == ActionType::EyeTracking)
+	if (act->type == ActionType::EyeTracking || act->type == ActionType::Vector3)
 		return VRInputError_WrongType;
 
 	if (act->type != ActionType::Vibration) {
@@ -2349,6 +2358,8 @@ EVRInputError BaseInput::GetActionOrigins(VRActionSetHandle_t actionSetHandle, V
 	ZeroMemory(originsOut, originOutCount * sizeof(*originsOut));
 	if (act->type == ActionType::EyeTracking)
 		return VRInputError_NoData;
+	if (act->type == ActionType::Vector3)
+		return act->hasUnsupportedVector3Binding ? VRInputError_NoData : VRInputError_None;
 
 	std::set<std::string> sources;
 	XrBoundSourcesForActionEnumerateInfo info = { XR_TYPE_BOUND_SOURCES_FOR_ACTION_ENUMERATE_INFO };
@@ -2478,6 +2489,8 @@ EVRInputError BaseInput::GetActionBindingInfo(VRActionHandle_t actionHandle, OOV
 	GET_ACTION_FROM_HANDLE(action, actionHandle);
 	if (action->type == ActionType::EyeTracking)
 		return VRInputError_NoData;
+	if (action->type == ActionType::Vector3)
+		return action->hasUnsupportedVector3Binding ? VRInputError_NoData : VRInputError_None;
 
 	XrBoundSourcesForActionEnumerateInfo enumInfo = { XR_TYPE_BOUND_SOURCES_FOR_ACTION_ENUMERATE_INFO };
 	enumInfo.action = action->xr;

@@ -1071,11 +1071,11 @@ void BaseInput::LoadDpadAction(const InteractionProfile& profile, const std::str
 	info.subactionPaths = allSubactionPaths.data();
 	info.countSubactionPaths = allSubactionPaths.size();
 
-	auto parent_iter = DpadBindingInfo::parents.find(parentName);
+	const std::string parentKey = action->setName + "/" + parentName;
+	auto parent_iter = DpadBindingInfo::parents.find(parentKey);
 	if (parent_iter == DpadBindingInfo::parents.end()) {
-		// create mapping
-		DpadBindingInfo::parents.insert({ parentName, DpadBindingInfo::ParentActions{} });
-		parent_iter = DpadBindingInfo::parents.find(parentName);
+		DpadBindingInfo::parents.insert({ parentKey, DpadBindingInfo::ParentActions{} });
+		parent_iter = DpadBindingInfo::parents.find(parentKey);
 
 		// create action for getting parent data (i.e. trackpad location)
 		strcpy_arr(info.actionName, parentName.c_str());
@@ -1133,7 +1133,7 @@ void BaseInput::LoadDpadAction(const InteractionProfile& profile, const std::str
 	}
 
 	// add dpad parent to action
-	action->perProfileData[&profile].dpadBindings.push_back({ parentName, dpad_info });
+	action->perProfileData[&profile].dpadBindings.push_back({ parentKey, dpad_info });
 }
 
 void BaseInput::LoadDClickAction(const InteractionProfile& profile, const std::string& importBasePath, Action* action, std::vector<XrActionSuggestedBinding>& bindings)

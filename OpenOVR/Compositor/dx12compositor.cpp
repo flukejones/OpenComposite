@@ -6,9 +6,6 @@
 
 #include <string>
 
-#include <atlbase.h>
-
-#include <DirectXMath.h>
 #include <d3dcompiler.h>
 
 #include <d3d12.h>

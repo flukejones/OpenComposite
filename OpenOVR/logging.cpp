@@ -15,6 +15,7 @@
 #include <sys/stat.h> // stat
 #ifdef _WIN32
 #include <direct.h> // _mkdir
+#include <io.h>
 #endif
 #ifdef __GLIBCXX__
 #include <unistd.h>
@@ -240,7 +241,11 @@ void oovr_flush_safe()
 
 	int r;
 	do {
+#ifdef _WIN32
+		r = _commit(fd);
+#else
 		r = fsync(fd);
+#endif
 	} while (r < 0 && errno == EINTR);
 #endif
 }

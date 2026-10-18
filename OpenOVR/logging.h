@@ -36,7 +36,7 @@ std::string GetEnv(const std::string& var);
 	} while (0)
 #define OOVR_ABORTF(msg, ...)                                                        \
 	do {                                                                             \
-		oovr_abort_raw(__FILE__, __LINE__, __FUNCTION__, msg, nullptr, __VA_ARGS__); \
+		oovr_abort_raw(__FILE__, __LINE__, __FUNCTION__, msg, nullptr __VA_OPT__(,) __VA_ARGS__); \
 	} while (0)
 
 /**
